@@ -1,0 +1,25 @@
+Source: gooroom-dockbarx-applet
+Section: gnome
+Priority: optional
+Maintainer: Gooroom Maintainers <gooroom@gooroom.kr>
+Build-Depends: automake (>= 1.13),
+               debhelper (>= 10),
+               gnome-pkg-tools (>= 0.17),
+               gnome-common (>=3.18.0),
+               intltool (>= 0.35.0),
+               libglib2.0-dev (>= 2.44.0),
+               libgtk-3-dev (>= 3.20.0),
+               libpanel-applet-dev (>= 3.24.1),
+               gir1.2-glib-2.0,
+               gir1.2-gtk-3.0,
+               libjson-c-dev,
+               python-gi-cairo
+Standards-Version: 4.1.1
+Vcs-Git: https://github.com/gooroom/gooroom-dockbarx-applet.git
+Vcs-Browser: https://github.com/gooroom/gooroom-dockbarx-applet
+
+Package: gooroom-dockbarx-applet
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: An applet for the GNOME panel which embed DockbarX.
+
