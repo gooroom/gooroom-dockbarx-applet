@@ -1,0 +1,38 @@
+gooroom-dockbarx-applet (0.1.0+grm1u1+dev18~1.gbp720ac9) unstable; urgency=medium
+
+  ** SNAPSHOT build @720ac996bdeb143475db6c681a8d5af4f0d1a37b **
+
+  [ cjheo ]
+  * Removed dependency (libwnck)
+  * Removed dependency from configure.ac file
+  * Updated #2
+  * updated #3
+  * Updated #4
+  * Updated #5
+  * Set launchers for GPMS user
+  * Apply blacklist
+  * Apply blacklist#2
+  * Modify background color
+  * Remove unneccessary code
+  * Delays the start of the dockbar
+  * Fixed the dock bar to automatically reload when changing the icon theme
+  * Remove panel handle
+
+  [ HaeRyong Jeong ]
+  * Porting from PyGTK to PyGObject
+
+  [ user ]
+  * Skip user ID verification to support cloud login
+  * Update sources regarding copyright
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Thu, 10 Oct 2019 17:39:11 +0900
+
+gooroom-dockbarx-applet (0.1.0+grm1u1) unstable; urgency=medium
+
+  * Initial Release.
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Wed, 21 Mar 2018 15:17:25 +0900
+
+
