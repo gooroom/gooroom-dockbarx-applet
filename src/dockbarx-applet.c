@@ -48,6 +48,8 @@ struct _DockbarxAppletPrivate
 	GSettings *blacklist_settings;
 
 	GSList *blacklist;
+
+	guint timeout_id;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (DockbarxApplet, dockbarx_applet, PANEL_TYPE_APPLET)
@@ -244,40 +246,43 @@ match_desktop (const gchar *desktop_id, const gchar *match_str)
 {
 	gboolean ret = FALSE;
 	GDesktopAppInfo *dt_info = NULL;
+	gchar *name = NULL, *locale_name = NULL, *exec = NULL;
 
-	if (!desktop_id || !match_str)
+	if (!desktop_id || !match_str || strlen (match_str) == 0)
 		return FALSE;
 
 	dt_info = g_desktop_app_info_new (desktop_id);
 	if (!dt_info)
 		return FALSE;
 
-	while (1) {
-		gchar *name = NULL, *locale_name = NULL, *exec = NULL;
-
-		name = g_desktop_app_info_get_string (dt_info, G_KEY_FILE_DESKTOP_KEY_NAME);
-		if (name && ((g_utf8_collate (name, match_str) == 0) || (panel_g_utf8_strstrcase (name, match_str) != NULL))) {
-			g_free (name);
-			ret = TRUE;
-			break;
-		}
-
-		locale_name = g_desktop_app_info_get_locale_string (dt_info, G_KEY_FILE_DESKTOP_KEY_NAME);
-		if (locale_name && ((g_utf8_collate (locale_name, match_str) == 0) || (panel_g_utf8_strstrcase (locale_name, match_str) != NULL))) {
-			g_free (locale_name);
-			ret = TRUE;
-			break;
-		}
-
-		exec = g_desktop_app_info_get_string (dt_info, G_KEY_FILE_DESKTOP_KEY_EXEC);
-		if (exec && ((g_utf8_collate (exec, match_str) == 0) || (panel_g_utf8_strstrcase (exec, match_str) != NULL))) {
-			g_free (exec);
-			ret = TRUE;
-			break;
-		}
-
-		break;
+	if (g_str_equal (desktop_id, match_str)) {
+		ret = TRUE;
+		goto find;
 	}
+
+	name = g_desktop_app_info_get_string (dt_info, G_KEY_FILE_DESKTOP_KEY_NAME);
+	if (name && ((g_utf8_collate (name, match_str) == 0) || (panel_g_utf8_strstrcase (name, match_str) != NULL))) {
+		ret = TRUE;
+		goto find;
+	}
+
+	locale_name = g_desktop_app_info_get_locale_string (dt_info, G_KEY_FILE_DESKTOP_KEY_NAME);
+	if (locale_name && ((g_utf8_collate (locale_name, match_str) == 0) || (panel_g_utf8_strstrcase (locale_name, match_str) != NULL))) {
+		ret = TRUE;
+		goto find;
+	}
+
+	exec = g_desktop_app_info_get_string (dt_info, G_KEY_FILE_DESKTOP_KEY_EXEC);
+	if (exec && ((g_utf8_collate (exec, match_str) == 0) || (panel_g_utf8_strstrcase (exec, match_str) != NULL))) {
+
+		ret = TRUE;
+		goto find;
+	}
+
+find:
+	g_free (name);
+	g_free (locale_name);
+	g_free (exec);
 
 	g_object_unref (dt_info);
 
@@ -334,7 +339,6 @@ app_blacklist_get (DockbarxApplet *applet)
 			if (appinfo) {
 				const gchar *id;
 				GDesktopAppInfo *dt_info = NULL;
-				gchar *locale_name, *name, *exec;
 
 				id = g_app_info_get_id (appinfo);
 				if (desktop_contain_blacklist (id, blacklist)) {
@@ -570,8 +574,6 @@ start_dockbarx (DockbarxApplet *applet)
 	gchar *cmd = NULL;
 	gulong socket_id = 0;
 
-	g_spawn_command_line_sync ("pkill -f 'python.*xfce4-dockbarx-plug'", NULL, NULL, NULL, NULL);
-
 	gtk_widget_destroy (priv->socket);
 	priv->socket = gtk_socket_new ();
 	gtk_container_add (GTK_CONTAINER (applet), priv->socket);
@@ -590,11 +592,75 @@ start_dockbarx_idle (gpointer data)
 	DockbarxApplet *applet = DOCKBARX_APPLET (data);
 	DockbarxAppletPrivate *priv = applet->priv;
 
+	if (priv->timeout_id > 0) {
+		g_source_remove (priv->timeout_id);
+		priv->timeout_id = 0;
+	}
+
 	start_dockbarx (applet);
 
 	gtk_widget_show_all (GTK_WIDGET (applet));
 
 	return FALSE;
+}
+
+static void
+process_done_cb (GPid pid, gint status, gpointer data)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (data);
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	g_spawn_close_pid (pid);
+
+	if (priv->timeout_id > 0) {
+		g_source_remove (priv->timeout_id);
+		priv->timeout_id = 0;
+	}
+
+	priv->timeout_id = g_timeout_add (1000, (GSourceFunc)start_dockbarx_idle, applet);
+}
+
+static void
+update_dockbarx (DockbarxApplet *applet)
+{
+	GPid pid;
+	gchar **argv;
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	if (priv->blacklist)
+		g_slist_free_full (priv->blacklist, (GDestroyNotify)g_free);
+
+	priv->blacklist = app_blacklist_get (applet);
+	dockbarx_launchers_config_set (applet);
+
+	if (priv->timeout_id > 0) {
+		g_source_remove (priv->timeout_id);
+		priv->timeout_id = 0;
+	}
+
+	g_shell_parse_argv ("/usr/bin/pkill -f 'python.*xfce4-dockbarx-plug'", NULL, &argv, NULL);
+
+	// Spawn child process.
+	if (g_spawn_async_with_pipes (NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD, NULL,
+                                  NULL, &pid, NULL, NULL, NULL, NULL)) {
+		g_child_watch_add (pid, process_done_cb, applet);
+	} else {
+		priv->timeout_id = g_timeout_add (1000, (GSourceFunc)start_dockbarx_idle, applet);
+	}
+
+	g_strfreev (argv);
+}
+
+static void
+blacklist_settings_changed_cb (GSettings   *settings,
+                               const gchar *key,
+                               gpointer     user_data)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (user_data);
+
+	if (key && g_str_equal (key, "blacklist")) {
+		update_dockbarx (applet);
+	}
 }
 
 static gboolean
@@ -635,38 +701,15 @@ dockbarx_applet_size_allocate (GtkWidget     *widget,
 }
 
 static void
-update_dockbarx (DockbarxApplet *applet)
-{
-	DockbarxAppletPrivate *priv = applet->priv;
-
-	g_spawn_command_line_sync ("pkill -f 'python.*xfce4-dockbarx-plug'", NULL, NULL, NULL, NULL);
-
-	if (priv->blacklist)
-		g_slist_free_full (priv->blacklist, (GDestroyNotify)g_free);
-
-	priv->blacklist = app_blacklist_get (applet);
-	dockbarx_launchers_config_set (applet);
-
-	g_idle_add ((GSourceFunc)start_dockbarx_idle, applet);
-}
-
-static void
-blacklist_settings_changed_cb (GSettings   *settings,
-                               const gchar *key,
-                               gpointer     user_data)
-{
-	DockbarxApplet *applet = DOCKBARX_APPLET (user_data);
-
-	if (key && g_str_equal (key, "blacklist")) {
-		update_dockbarx (applet);
-	}
-}
-
-static void
 dockbarx_applet_finalize (GObject *object)
 {
 	DockbarxApplet *applet = DOCKBARX_APPLET (object);
 	DockbarxAppletPrivate *priv = applet->priv;
+
+	if (priv->timeout_id > 0) {
+		g_source_remove (priv->timeout_id);
+		priv->timeout_id = 0;
+	}
 
 	if (priv->dockbarx_settings)
 		g_object_unref (priv->dockbarx_settings);
@@ -703,7 +746,11 @@ dockbarx_applet_init (DockbarxApplet *applet)
 	if (schema)
 		priv->blacklist_settings = g_settings_new_full (schema, NULL, NULL);
 
-	g_signal_connect (priv->blacklist_settings, "changed", G_CALLBACK (blacklist_settings_changed_cb), applet);
+	g_signal_connect (priv->blacklist_settings, "changed",
+                      G_CALLBACK (blacklist_settings_changed_cb), applet);
+
+	priv->timeout_id = 0;
+	priv->blacklist = NULL;
 
 	priv->socket = gtk_socket_new ();
 	gtk_container_add (GTK_CONTAINER (applet), priv->socket);
@@ -726,16 +773,7 @@ dockbarx_applet_class_init (DockbarxAppletClass *class)
 static gboolean
 dockbarx_applet_fill (DockbarxApplet *applet)
 {
-	g_return_val_if_fail (PANEL_IS_APPLET (applet), FALSE);
-
-	DockbarxAppletPrivate *priv = applet->priv;
-
-	g_spawn_command_line_sync ("pkill -f 'python.*xfce4-dockbarx-plug'", NULL, NULL, NULL, NULL);
-
-	priv->blacklist = app_blacklist_get (applet);
-	dockbarx_launchers_config_set (applet);
-
-	g_timeout_add (500, (GSourceFunc)start_dockbarx_idle, applet);
+	update_dockbarx (applet);
 
 	return TRUE;
 }
