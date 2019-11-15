@@ -47,8 +47,6 @@ struct _DockbarxAppletPrivate
 	GSettings *dockbarx_settings;
 	GSettings *blacklist_settings;
 
-	GSList *blacklist;
-
 	guint timeout_id;
 };
 
@@ -241,118 +239,6 @@ create_desktop_file (json_object *obj, const gchar *dt_file_name, gint num)
 	return ret;
 }
 
-static gboolean
-match_desktop (const gchar *desktop_id, const gchar *match_str)
-{
-	gboolean ret = FALSE;
-	GDesktopAppInfo *dt_info = NULL;
-	gchar *name = NULL, *locale_name = NULL, *exec = NULL;
-
-	if (!desktop_id || !match_str || strlen (match_str) == 0)
-		return FALSE;
-
-	dt_info = g_desktop_app_info_new (desktop_id);
-	if (!dt_info)
-		return FALSE;
-
-	if (g_str_equal (desktop_id, match_str)) {
-		ret = TRUE;
-		goto find;
-	}
-
-	name = g_desktop_app_info_get_string (dt_info, G_KEY_FILE_DESKTOP_KEY_NAME);
-	if (name && ((g_utf8_collate (name, match_str) == 0) || (panel_g_utf8_strstrcase (name, match_str) != NULL))) {
-		ret = TRUE;
-		goto find;
-	}
-
-	locale_name = g_desktop_app_info_get_locale_string (dt_info, G_KEY_FILE_DESKTOP_KEY_NAME);
-	if (locale_name && ((g_utf8_collate (locale_name, match_str) == 0) || (panel_g_utf8_strstrcase (locale_name, match_str) != NULL))) {
-		ret = TRUE;
-		goto find;
-	}
-
-	exec = g_desktop_app_info_get_string (dt_info, G_KEY_FILE_DESKTOP_KEY_EXEC);
-	if (exec && ((g_utf8_collate (exec, match_str) == 0) || (panel_g_utf8_strstrcase (exec, match_str) != NULL))) {
-
-		ret = TRUE;
-		goto find;
-	}
-
-find:
-	g_free (name);
-	g_free (locale_name);
-	g_free (exec);
-
-	g_object_unref (dt_info);
-
-	return ret;
-}
-
-static gboolean
-desktop_contain_blacklist (const gchar *desktop_id, gchar **blacklist)
-{
-	guint i = 0;
-
-	if (!desktop_id) return FALSE;
-
-	for (i = 0; blacklist[i]; i++) {
-		if (match_desktop (desktop_id, blacklist[i]))
-			return TRUE;
-	}
-
-	return FALSE;
-}
-
-static gboolean
-find_blacklist (const gchar *desktop, GSList *blacklist)
-{
-	if (!desktop || !blacklist)
-		return FALSE;
-
-	GSList *l = NULL;
-	for (l = blacklist; l; l = l->next) {
-		if (g_str_has_suffix (desktop, (const char *)l->data)) {
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
-static GSList *
-app_blacklist_get (DockbarxApplet *applet)
-{
-	GSList *ret = NULL;
-
-	DockbarxAppletPrivate *priv = applet->priv;
-
-	if (priv->blacklist_settings) {
-		gchar **blacklist = NULL;
-		GList *all_apps = NULL, *l = NULL;
-
-		blacklist = g_settings_get_strv (priv->blacklist_settings, "blacklist");
-
-		all_apps = g_app_info_get_all ();
-		for (l = all_apps; l; l = l->next) {
-			GAppInfo *appinfo = G_APP_INFO (l->data);
-			if (appinfo) {
-				const gchar *id;
-				GDesktopAppInfo *dt_info = NULL;
-
-				id = g_app_info_get_id (appinfo);
-				if (desktop_contain_blacklist (id, blacklist)) {
-					if (!g_slist_find_custom (ret, id, (GCompareFunc) g_utf8_collate)) {
-						ret = g_slist_append (ret, g_strdup (id));
-					}
-				}
-			}
-		}
-	}
-
-	return ret;
-}
-
 static void
 dockbarx_launchers_set (GSList *launchers, DockbarxApplet *applet)
 {
@@ -458,10 +344,8 @@ dockbarx_launchers_get (DockbarxApplet *applet)
 
 		launchers = g_settings_get_strv (priv->dockbarx_settings, "launchers");
 		for (i = 0; i < g_strv_length (launchers); i++) {
-			if (!g_str_has_prefix (launchers[i], "shortcut-") &&
-                !find_blacklist (launchers[i], priv->blacklist)) {
+			if (!g_str_has_prefix (launchers[i], "shortcut-"))
 				ret = g_slist_append (ret, g_strdup (launchers[i]));
-			}
 		}
 
 		g_strfreev (launchers);
@@ -617,20 +501,16 @@ process_done_cb (GPid pid, gint status, gpointer data)
 		priv->timeout_id = 0;
 	}
 
-	priv->timeout_id = g_timeout_add (1000, (GSourceFunc)start_dockbarx_idle, applet);
+	priv->timeout_id = g_timeout_add (500, (GSourceFunc)start_dockbarx_idle, applet);
 }
 
 static void
 update_dockbarx (DockbarxApplet *applet)
 {
 	GPid pid;
-	gchar **argv;
+	gchar **argv = NULL, **envp = NULL;
 	DockbarxAppletPrivate *priv = applet->priv;
 
-	if (priv->blacklist)
-		g_slist_free_full (priv->blacklist, (GDestroyNotify)g_free);
-
-	priv->blacklist = app_blacklist_get (applet);
 	dockbarx_launchers_config_set (applet);
 
 	if (priv->timeout_id > 0) {
@@ -638,17 +518,24 @@ update_dockbarx (DockbarxApplet *applet)
 		priv->timeout_id = 0;
 	}
 
+	envp = g_get_environ ();
 	g_shell_parse_argv ("/usr/bin/pkill -f 'python.*xfce4-dockbarx-plug'", NULL, &argv, NULL);
 
-	// Spawn child process.
-	if (g_spawn_async_with_pipes (NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD, NULL,
-                                  NULL, &pid, NULL, NULL, NULL, NULL)) {
-		g_child_watch_add (pid, process_done_cb, applet);
+	if (g_spawn_async (NULL, argv, envp, G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, &pid, NULL)) {
+		g_child_watch_add (pid, (GChildWatchFunc) process_done_cb, applet);
 	} else {
-		priv->timeout_id = g_timeout_add (1000, (GSourceFunc)start_dockbarx_idle, applet);
+		priv->timeout_id = g_timeout_add (500, (GSourceFunc)start_dockbarx_idle, applet);
 	}
 
 	g_strfreev (argv);
+}
+
+static gboolean
+update_dockbarx_idle (gpointer data)
+{
+	update_dockbarx (DOCKBARX_APPLET (data));
+
+	return FALSE;
 }
 
 static void
@@ -658,9 +545,8 @@ blacklist_settings_changed_cb (GSettings   *settings,
 {
 	DockbarxApplet *applet = DOCKBARX_APPLET (user_data);
 
-	if (key && g_str_equal (key, "blacklist")) {
-		update_dockbarx (applet);
-	}
+	if (key && g_str_equal (key, "blacklist"))
+		g_idle_add ((GSourceFunc)update_dockbarx_idle, applet);
 }
 
 static gboolean
@@ -717,9 +603,6 @@ dockbarx_applet_finalize (GObject *object)
 	if (priv->blacklist_settings)
 		g_object_unref (priv->blacklist_settings);
 
-	if (priv->blacklist)
-		g_slist_free_full (priv->blacklist, (GDestroyNotify)g_free);
-
 	if (G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize)
 		G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize (object);
 }
@@ -739,18 +622,22 @@ dockbarx_applet_init (DockbarxApplet *applet)
 
 
 	schema = g_settings_schema_source_lookup (g_settings_schema_source_get_default (), "org.dockbarx", TRUE);
-	if (schema)
+	if (schema) {
 		priv->dockbarx_settings = g_settings_new_full (schema, NULL, NULL);
+		g_settings_schema_unref (schema);
+	}
 
 	schema = g_settings_schema_source_lookup (g_settings_schema_source_get_default (), "apps.gooroom-applauncher-applet", TRUE);
-	if (schema)
+	if (schema) {
 		priv->blacklist_settings = g_settings_new_full (schema, NULL, NULL);
 
-	g_signal_connect (priv->blacklist_settings, "changed",
-                      G_CALLBACK (blacklist_settings_changed_cb), applet);
+		g_signal_connect (priv->blacklist_settings, "changed",
+                          G_CALLBACK (blacklist_settings_changed_cb), applet);
+
+		g_settings_schema_unref (schema);
+	}
 
 	priv->timeout_id = 0;
-	priv->blacklist = NULL;
 
 	priv->socket = gtk_socket_new ();
 	gtk_container_add (GTK_CONTAINER (applet), priv->socket);
