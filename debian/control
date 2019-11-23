@@ -20,6 +20,6 @@ Vcs-Browser: https://github.com/gooroom/gooroom-dockbarx-applet
 
 Package: gooroom-dockbarx-applet
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}, wget
 Description: An applet for the GNOME panel which embed DockbarX.
 

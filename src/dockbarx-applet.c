@@ -45,9 +45,15 @@ struct _DockbarxAppletPrivate
 	GtkWidget *socket;
 
 	GSettings *dockbarx_settings;
-	GSettings *blacklist_settings;
 
 	guint timeout_id;
+
+	guint reg_id;
+	guint owner_id;
+
+	GDBusConnection *connection;
+
+	gboolean lock;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (DockbarxApplet, dockbarx_applet, PANEL_TYPE_APPLET)
@@ -71,7 +77,7 @@ get_grm_user_data (void)
 {
 	gchar *data = NULL, *file = NULL;
 
-	file = g_strdup_printf ("/var/run/user/%d/gooroom/%s", getuid (), GRM_USER);
+	file = g_strdup_printf ("%s/.gooroom/%s", g_get_home_dir (), GRM_USER);
 
 	if (!g_file_test (file, G_FILE_TEST_EXISTS))
 		goto error;
@@ -84,23 +90,19 @@ error:
 	return data;
 }
 
-static gboolean
+static void
 download_with_wget (const gchar *download_url, const gchar *download_path)
 {
-	gboolean ret = FALSE;
-
 	if (!download_url || !download_path)
-		return FALSE;
+		return;
 
-	gchar *cmd = g_find_program_in_path ("wget");
-	if (cmd) {
-		gchar *cmdline = g_strdup_printf ("%s --no-check-certificate %s -q -O %s", cmd, download_url, download_path);
-		ret = g_spawn_command_line_sync (cmdline, NULL, NULL, NULL, NULL);
-		g_free (cmdline);
+	gchar *wget = g_find_program_in_path ("wget");
+	if (wget) {
+		gchar *cmd = g_strdup_printf ("%s --no-check-certificate %s -q -O %s", wget, download_url, download_path);
+		g_spawn_command_line_sync (cmd, NULL, NULL, NULL, NULL);
+		g_free (cmd);
 	}
-	g_free (cmd);
-
-	return ret;
+	g_free (wget);
 }
 
 static gchar *
@@ -108,31 +110,53 @@ download_favicon (const gchar *favicon_url, gint num)
 {
 	g_return_val_if_fail (favicon_url != NULL, NULL);
 
-	gchar *favicon_path = NULL;
+	gchar *favicon_path = NULL, *ret = NULL;
 
 	favicon_path = g_strdup_printf ("%s/favicon-%.02d", g_get_user_cache_dir (), num);
-	g_remove (favicon_path);
 
-	if (!download_with_wget (favicon_url, favicon_path))
+	download_with_wget (favicon_url, favicon_path);
+
+	if (!g_file_test (favicon_path, G_FILE_TEST_EXISTS)) {
+		ret = g_strdup ("applications-other");
 		goto error;
+	}
 
-	if (!g_file_test (favicon_path, G_FILE_TEST_EXISTS))
-		goto error;
+	// check file type
+	gchar *file = NULL, *mime_type = NULL;
 
-	// check file size
-	struct stat st;
-	if (lstat (favicon_path, &st) == -1)
-		goto error;
+	file = g_find_program_in_path ("file");
+	if (file) {
+		gchar *cmd, *output = NULL;
 
-	if (st.st_size == 0)
-		goto error;
+		cmd = g_strdup_printf ("%s --brief --mime-type %s", file, favicon_path);
+		if (g_spawn_command_line_sync (cmd, &output, NULL, NULL, NULL)) {
+			gchar **lines = g_strsplit (output, "\n", -1);
+			if (g_strv_length (lines) > 0)
+				mime_type = g_strdup (lines[0]);
+			g_strfreev (lines);
+		}
 
-	return favicon_path;
+		g_free (cmd);
+		g_free (output);
+	}
+
+	g_free (file);
+
+	if (!g_str_equal (mime_type, "image/png") &&
+        !g_str_equal (mime_type, "image/jpg") &&
+        !g_str_equal (mime_type, "image/jpeg") &&
+        !g_str_equal (mime_type, "image/svg")) {
+		ret = g_strdup ("applications-other");
+	} else {
+		ret = g_strdup (favicon_path);
+	}
+
+	g_free (mime_type);
 
 error:
 	g_free (favicon_path);
 
-	return g_strdup ("applications-other");
+	return ret;
 }
 
 
@@ -161,24 +185,37 @@ get_desktop_directory (json_object *obj)
 }
 
 static void
-remove_desktop_files (void)
+cleanup_favicon_files (void)
+{
+	gchar *rm, *cmd;
+
+	rm = g_find_program_in_path ("rm");
+	cmd = g_strdup_printf ("%s -f %s/favicon*", rm, g_get_user_cache_dir ());
+
+	g_spawn_command_line_sync (cmd, NULL, NULL, NULL, NULL);
+
+	g_free (rm);
+	g_free (cmd);
+}
+
+static void
+cleanup_desktop_files (void)
 {
 	gchar *remove_dir = g_build_filename (g_get_user_data_dir (), "applications/custom", NULL);
 	if (g_file_test (remove_dir, G_FILE_TEST_EXISTS)) {
-		gchar *cmd, *cmdline;
+		gchar *rm, *cmd;
 
-		cmd = g_find_program_in_path ("rm");
-		cmdline = g_strdup_printf ("%s -rf %s", cmd, remove_dir);
+		rm = g_find_program_in_path ("rm");
+		cmd = g_strdup_printf ("%s -rf %s", rm, remove_dir);
 
-		g_spawn_command_line_sync (cmdline, NULL, NULL, NULL, NULL);
+		g_spawn_command_line_sync (cmd, NULL, NULL, NULL, NULL);
 
+		g_free (rm);
 		g_free (cmd);
-		g_free (cmdline);
 	}
 
 	g_free (remove_dir);
 }
-
 
 static gboolean
 create_desktop_file (json_object *obj, const gchar *dt_file_name, gint num)
@@ -197,12 +234,8 @@ create_desktop_file (json_object *obj, const gchar *dt_file_name, gint num)
 		if (d_key && g_strcmp0 (d_key, "icon") == 0) {
 			if (g_str_has_prefix (value, "http://") || g_str_has_prefix (value, "https://")) {
 				gchar *icon_file = download_favicon (value, num);
-				if (icon_file) {
-					g_key_file_set_string (keyfile, "Desktop Entry", "Icon", icon_file);
-					g_free (icon_file);
-				} else {
-					g_key_file_set_string (keyfile, "Desktop Entry", "Icon", "applications-other");
-				}
+				g_key_file_set_string (keyfile, "Desktop Entry", "Icon", icon_file);
+				g_free (icon_file);
 			} else {
 				g_key_file_set_string (keyfile, "Desktop Entry", "Icon", value);
 			}
@@ -240,7 +273,7 @@ create_desktop_file (json_object *obj, const gchar *dt_file_name, gint num)
 }
 
 static void
-dockbarx_launchers_set (GSList *launchers, DockbarxApplet *applet)
+launchers_set (GSList *launchers, DockbarxApplet *applet)
 {
 	DockbarxAppletPrivate *priv = applet->priv;
 
@@ -416,11 +449,110 @@ get_launchers (json_object *root_obj, DockbarxApplet *applet)
 	return cmb_launchers;
 }
 
-static void
-dockbarx_launcher_update (DockbarxApplet *applet)
+static gboolean
+start_dockbarx (DockbarxApplet *applet)
 {
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	gchar *cmd = NULL;
+	gulong socket_id = 0;
+
+	if (priv->socket) {
+		gtk_widget_destroy (priv->socket);
+		priv->socket = NULL;
+	}
+
+	priv->socket = gtk_socket_new ();
+	gtk_container_add (GTK_CONTAINER (applet), priv->socket);
+	gtk_widget_show (GTK_WIDGET (priv->socket));
+
+	socket_id = gtk_socket_get_id (GTK_SOCKET (priv->socket));
+
+	cmd = g_strdup_printf ("/usr/bin/env python2 %s -s %lu", DOCKBARX_PLUG, socket_id);
+
+	g_spawn_command_line_async (cmd, NULL);
+
+	return FALSE;
+}
+
+static void
+kill_dockbarx_done_cb (GPid pid, gint status, gpointer data)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (data);
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	g_spawn_close_pid (pid);
+
+	g_idle_add ((GSourceFunc)start_dockbarx, applet);
+}
+
+static void
+kill_dockbarx (DockbarxApplet *applet)
+{
+	GPid pid;
+	gchar **argv = NULL, **envp = NULL;
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	envp = g_get_environ ();
+	g_shell_parse_argv ("/usr/bin/pkill -f 'python.*xfce4-dockbarx-plug'", NULL, &argv, NULL);
+
+	if (g_spawn_async (NULL, argv, envp, G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, &pid, NULL)) {
+		g_child_watch_add (pid, (GChildWatchFunc) kill_dockbarx_done_cb, applet);
+	} else {
+		g_idle_add ((GSourceFunc)start_dockbarx, applet);
+	}
+
+	g_strfreev (argv);
+}
+
+static gboolean
+restart_dockbarx_idle (gpointer data)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (data);
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	if (priv->timeout_id > 0) {
+		g_source_remove (priv->timeout_id);
+		priv->timeout_id = 0;
+	}
+
+	kill_dockbarx (applet);
+
+	return FALSE;
+}
+
+static void
+update_launchers_thread_done_cb (GObject      *source_object,
+                                 GAsyncResult *result,
+                                 gpointer      user_data)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (user_data);
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	if (priv->timeout_id > 0) {
+		g_source_remove (priv->timeout_id);
+		priv->timeout_id = 0;
+	}
+
+	priv->timeout_id = g_timeout_add (500, (GSourceFunc)restart_dockbarx_idle, applet);
+
+	applet->priv->lock = FALSE;
+}
+
+static void
+update_launchers_thread (GTask        *task,
+                         gpointer      source_object,
+                         gpointer      task_data,
+                         GCancellable *cancellable)
+{
+	gchar *data = NULL;
 	GSList *launchers = NULL;
-	gchar *data = get_grm_user_data ();
+	DockbarxApplet *applet = DOCKBARX_APPLET (source_object);
+
+	cleanup_desktop_files ();
+	cleanup_favicon_files ();
+
+	data = get_grm_user_data ();
 
 	if (data) {
 		enum json_tokener_error jerr = json_tokener_success;
@@ -437,116 +569,112 @@ dockbarx_launcher_update (DockbarxApplet *applet)
 		launchers = get_launchers (NULL, applet);
 	}
 
-	dockbarx_launchers_set (launchers, applet);
+	launchers_set (launchers, applet);
+
+	/* The task has finished */
+	g_task_return_boolean (task, TRUE);
 }
 
 static void
-dockbarx_launchers_config_set (DockbarxApplet *applet)
+update_launchers_async (DockbarxApplet *applet)
 {
-	DockbarxAppletPrivate *priv = applet->priv;
+	GTask *task;
 
-	remove_desktop_files ();
+	if (applet->priv->lock)
+		return;
 
-	dockbarx_launcher_update (applet);
+	applet->priv->lock = TRUE;
+
+	task = g_task_new (applet, NULL, update_launchers_thread_done_cb, applet);
+	g_task_run_in_thread (task, update_launchers_thread);
+	g_object_unref (task);
 }
 
 static void
-start_dockbarx (DockbarxApplet *applet)
-{
-	DockbarxAppletPrivate *priv = applet->priv;
-
-	gchar *cmd = NULL;
-	gulong socket_id = 0;
-
-	gtk_widget_destroy (priv->socket);
-	priv->socket = gtk_socket_new ();
-	gtk_container_add (GTK_CONTAINER (applet), priv->socket);
-	gtk_widget_show (GTK_WIDGET (priv->socket));
-
-	socket_id = gtk_socket_get_id (GTK_SOCKET (priv->socket));
-
-	cmd = g_strdup_printf ("/usr/bin/env python2 %s -s %lu", DOCKBARX_PLUG, socket_id);
-
-	g_spawn_command_line_async (cmd, NULL);
-}
-
-static gboolean
-start_dockbarx_idle (gpointer data)
+handle_method_call (GDBusConnection *conn,
+                    const gchar *sender,
+                    const gchar *object_path,
+                    const gchar *interface_name,
+                    const gchar *method_name,
+                    GVariant *parameters,
+                    GDBusMethodInvocation *invocation,
+                    gpointer data)
 {
 	DockbarxApplet *applet = DOCKBARX_APPLET (data);
 	DockbarxAppletPrivate *priv = applet->priv;
 
-	if (priv->timeout_id > 0) {
-		g_source_remove (priv->timeout_id);
-		priv->timeout_id = 0;
-	}
+	if (!g_strcmp0 (method_name, "Restart")) {
+		if (priv->timeout_id > 0) {
+			g_source_remove (priv->timeout_id);
+			priv->timeout_id = 0;
+		}
+		priv->timeout_id = g_timeout_add (500, (GSourceFunc)restart_dockbarx_idle, applet);
 
-	start_dockbarx (applet);
-
-	gtk_widget_show_all (GTK_WIDGET (applet));
-
-	return FALSE;
-}
-
-static void
-process_done_cb (GPid pid, gint status, gpointer data)
-{
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
-
-	g_spawn_close_pid (pid);
-
-	if (priv->timeout_id > 0) {
-		g_source_remove (priv->timeout_id);
-		priv->timeout_id = 0;
-	}
-
-	priv->timeout_id = g_timeout_add (500, (GSourceFunc)start_dockbarx_idle, applet);
-}
-
-static void
-update_dockbarx (DockbarxApplet *applet)
-{
-	GPid pid;
-	gchar **argv = NULL, **envp = NULL;
-	DockbarxAppletPrivate *priv = applet->priv;
-
-	dockbarx_launchers_config_set (applet);
-
-	if (priv->timeout_id > 0) {
-		g_source_remove (priv->timeout_id);
-		priv->timeout_id = 0;
-	}
-
-	envp = g_get_environ ();
-	g_shell_parse_argv ("/usr/bin/pkill -f 'python.*xfce4-dockbarx-plug'", NULL, &argv, NULL);
-
-	if (g_spawn_async (NULL, argv, envp, G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, &pid, NULL)) {
-		g_child_watch_add (pid, (GChildWatchFunc) process_done_cb, applet);
+		g_dbus_method_invocation_return_value (invocation, g_variant_new ("()"));
 	} else {
-		priv->timeout_id = g_timeout_add (500, (GSourceFunc)start_dockbarx_idle, applet);
+		g_dbus_method_invocation_return_error (invocation,
+                                               G_DBUS_ERROR,
+                                               G_DBUS_ERROR_FAILED,
+                                               "No such method: %s", method_name);
 	}
-
-	g_strfreev (argv);
 }
 
-static gboolean
-update_dockbarx_idle (gpointer data)
-{
-	update_dockbarx (DOCKBARX_APPLET (data));
+static const gchar introspection_xml[] =
+    "<node>"
+    "  <interface name='kr.gooroom.dockbarx.applet'>"
+    "    <method name='Restart'/>"
+    "  </interface>"
+    "</node>";
 
-	return FALSE;
+static const GDBusInterfaceVTable interface_vtable = {
+    handle_method_call,
+    NULL,
+    NULL
+};
+
+static void
+on_dockbarx_applet_name_lost (GDBusConnection *connection,
+                              const gchar     *name,
+                              gpointer        *data)
+{
+}
+
+
+static void
+on_dockbarx_applet_bus_acquired (GDBusConnection *connection,
+                                 const gchar     *name,
+                                 gpointer        *data)
+{
+	GDBusNodeInfo *introspection_data;
+
+	DockbarxApplet *applet = DOCKBARX_APPLET (data);
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	priv->connection = connection;
+
+	// register object
+	introspection_data = g_dbus_node_info_new_for_xml (introspection_xml, NULL);
+
+	priv->reg_id = g_dbus_connection_register_object (priv->connection,
+                                                      "/kr/gooroom/dockbarx/applet",
+                                                      introspection_data->interfaces[0],
+                                                      &interface_vtable,
+                                                      applet, NULL,
+                                                      NULL);
 }
 
 static void
-blacklist_settings_changed_cb (GSettings   *settings,
-                               const gchar *key,
-                               gpointer     user_data)
+dockbarx_applet_dbus_init (DockbarxApplet *applet)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (user_data);
+	DockbarxAppletPrivate *priv = applet->priv;
 
-	if (key && g_str_equal (key, "blacklist"))
-		g_idle_add ((GSourceFunc)update_dockbarx_idle, applet);
+	priv->owner_id = g_bus_own_name (G_BUS_TYPE_SESSION,
+                                     "kr.gooroom.dockbarx.applet",
+                                     G_BUS_NAME_OWNER_FLAGS_NONE,
+                                     (GBusAcquiredCallback) on_dockbarx_applet_bus_acquired,
+                                     NULL,
+                                     (GBusNameLostCallback) on_dockbarx_applet_name_lost,
+                                     applet, NULL);
 }
 
 static gboolean
@@ -597,11 +725,18 @@ dockbarx_applet_finalize (GObject *object)
 		priv->timeout_id = 0;
 	}
 
+	if (priv->owner_id) {
+		g_bus_unown_name (priv->owner_id);
+		priv->owner_id = 0;
+	}
+
+	if (priv->reg_id) {
+		g_dbus_connection_unregister_object (priv->connection, priv->reg_id);
+		priv->reg_id = 0;
+	}
+
 	if (priv->dockbarx_settings)
 		g_object_unref (priv->dockbarx_settings);
-
-	if (priv->blacklist_settings)
-		g_object_unref (priv->blacklist_settings);
 
 	if (G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize)
 		G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize (object);
@@ -620,28 +755,22 @@ dockbarx_applet_init (DockbarxApplet *applet)
                             PANEL_APPLET_EXPAND_MAJOR |
                             PANEL_APPLET_EXPAND_MINOR);
 
-
-	schema = g_settings_schema_source_lookup (g_settings_schema_source_get_default (), "org.dockbarx", TRUE);
+	schema = g_settings_schema_source_lookup (g_settings_schema_source_get_default (),
+                                              "org.dockbarx", TRUE);
 	if (schema) {
 		priv->dockbarx_settings = g_settings_new_full (schema, NULL, NULL);
 		g_settings_schema_unref (schema);
 	}
 
-	schema = g_settings_schema_source_lookup (g_settings_schema_source_get_default (), "apps.gooroom-applauncher-applet", TRUE);
-	if (schema) {
-		priv->blacklist_settings = g_settings_new_full (schema, NULL, NULL);
-
-		g_signal_connect (priv->blacklist_settings, "changed",
-                          G_CALLBACK (blacklist_settings_changed_cb), applet);
-
-		g_settings_schema_unref (schema);
-	}
-
+	priv->lock       = FALSE;
+	priv->socket     = NULL;
+	priv->reg_id     = 0;
+	priv->owner_id   = 0;
 	priv->timeout_id = 0;
 
-	priv->socket = gtk_socket_new ();
-	gtk_container_add (GTK_CONTAINER (applet), priv->socket);
-	gtk_widget_show (GTK_WIDGET (priv->socket));
+	dockbarx_applet_dbus_init (applet);
+
+	gtk_widget_show_all (GTK_WIDGET (applet));
 }
 
 static void
@@ -660,7 +789,7 @@ dockbarx_applet_class_init (DockbarxAppletClass *class)
 static gboolean
 dockbarx_applet_fill (DockbarxApplet *applet)
 {
-	update_dockbarx (applet);
+	update_launchers_async (applet);
 
 	return TRUE;
 }
