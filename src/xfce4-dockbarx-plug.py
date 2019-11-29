@@ -6,7 +6,7 @@
 #   Copyright 2008-2013
 #      Aleksey Shaferov, Matias Sars, and Trent McPheron
 #
-#   Copyright (C) 2015-2019 Gooroom <gooroom@gooroom.kr>
+#   Copyright (C) 2018-2019 Gooroom <gooroom@gooroom.kr>
 #
 #   DockbarX is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
