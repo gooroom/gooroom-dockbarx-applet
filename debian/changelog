@@ -1,3 +1,14 @@
+gooroom-dockbarx-applet (0.2.0+grm2u1) unstable; urgency=medium
+
+  [ cjheo ]
+  * [cd72cc87] Fixed to udpate dockbarx asynchronously
+  * [392edef9] Improved blacklist handling
+  * [5d8770ad] Asynchronous network processing
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Sun, 01 Dec 2019 17:26:48 +0900
+
 gooroom-dockbarx-applet (0.2.0+grm2) unstable; urgency=medium
 
   * Initial Release
