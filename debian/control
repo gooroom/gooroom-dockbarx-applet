@@ -15,8 +15,6 @@ Build-Depends: automake (>= 1.13),
                libjson-c-dev,
                python-gi-cairo
 Standards-Version: 4.1.1
-Vcs-Git: https://github.com/gooroom/gooroom-dockbarx-applet.git
-Vcs-Browser: https://github.com/gooroom/gooroom-dockbarx-applet
 
 Package: gooroom-dockbarx-applet
 Architecture: any

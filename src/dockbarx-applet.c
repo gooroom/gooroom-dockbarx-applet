@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Gooroom <gooroom@gooroom.kr>
+ * Copyright (C) 2018-2019 Gooroom <gooroom@gooroom.kr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -575,19 +575,28 @@ update_launchers_thread (GTask        *task,
 	g_task_return_boolean (task, TRUE);
 }
 
-static void
+static gboolean
 update_launchers_async (DockbarxApplet *applet)
 {
 	GTask *task;
 
+	if (!g_file_test (g_get_user_cache_dir (), G_FILE_TEST_EXISTS)) {
+FILE *fp = fopen ("/var/tmp/dockbarx.debug", "a+");
+fprintf (fp, "cache dir not exists = %s\n", g_get_user_cache_dir ());
+fclose (fp);
+		return TRUE;
+	}
+
 	if (applet->priv->lock)
-		return;
+		return FALSE;
 
 	applet->priv->lock = TRUE;
 
 	task = g_task_new (applet, NULL, update_launchers_thread_done_cb, applet);
 	g_task_run_in_thread (task, update_launchers_thread);
 	g_object_unref (task);
+
+	return FALSE;
 }
 
 static void
@@ -789,7 +798,7 @@ dockbarx_applet_class_init (DockbarxAppletClass *class)
 static gboolean
 dockbarx_applet_fill (DockbarxApplet *applet)
 {
-	update_launchers_async (applet);
+	g_idle_add ((GSourceFunc)update_launchers_async ,applet);
 
 	return TRUE;
 }
