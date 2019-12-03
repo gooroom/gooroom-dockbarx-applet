@@ -580,12 +580,8 @@ update_launchers_async (DockbarxApplet *applet)
 {
 	GTask *task;
 
-	if (!g_file_test (g_get_user_cache_dir (), G_FILE_TEST_EXISTS)) {
-FILE *fp = fopen ("/var/tmp/dockbarx.debug", "a+");
-fprintf (fp, "cache dir not exists = %s\n", g_get_user_cache_dir ());
-fclose (fp);
+	if (!g_file_test (g_get_user_cache_dir (), G_FILE_TEST_EXISTS))
 		return TRUE;
-	}
 
 	if (applet->priv->lock)
 		return FALSE;
