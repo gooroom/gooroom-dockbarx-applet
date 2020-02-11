@@ -1,3 +1,12 @@
+gooroom-dockbarx-applet (0.2.2+grm2u1) unstable; urgency=medium
+
+  [ cjheo ]
+  * [0556efa9] Restructured to improve performance and stability
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Tue, 11 Feb 2020 10:01:54 +0900
+
 gooroom-dockbarx-applet (0.2.1+grm2u1) unstable; urgency=medium
 
   * Initial Release
