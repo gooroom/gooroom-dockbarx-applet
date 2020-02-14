@@ -320,6 +320,16 @@ dockbarx_applet_size_allocate (GtkWidget     *widget,
 }
 
 static void
+monitors_changed_cb (GdkScreen *screen, gpointer data)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (data);
+	DockbarxAppletPrivate *priv = applet->priv;
+
+	if (priv->timeout_id == 0)
+		priv->timeout_id = g_idle_add ((GSourceFunc)restart_dockbarx_idle, applet);
+}
+
+static void
 dockbarx_applet_finalize (GObject *object)
 {
 	DockbarxApplet *applet = DOCKBARX_APPLET (object);
@@ -350,6 +360,7 @@ dockbarx_applet_finalize (GObject *object)
 static void
 dockbarx_applet_init (DockbarxApplet *applet)
 {
+	GdkScreen *screen;
 	GSettingsSchema *schema = NULL;
 
 	DockbarxAppletPrivate *priv;
@@ -372,7 +383,12 @@ dockbarx_applet_init (DockbarxApplet *applet)
 	priv->owner_id   = 0;
 	priv->timeout_id = 0;
 
+	screen = gdk_screen_get_default ();
+
 	gtk_widget_show_all (GTK_WIDGET (applet));
+
+	g_signal_connect (screen, "monitors-changed",
+                      G_CALLBACK (monitors_changed_cb), applet);
 }
 
 static void
