@@ -1,7 +1,7 @@
-dockbarx_plugdir = $(pkglibdir)
+dockbarx_plugdir = $(GNOME_PANEL_MODULES_DIR)
 dockbarx_plug_SCRIPTS = xfce4-dockbarx-plug.py
 
-gooroomappletdir = $(pkglibdir)
+gooroomappletdir = $(GNOME_PANEL_MODULES_DIR)
 gooroomapplet_LTLIBRARIES = libgooroom-dockbarx-applet.la
 
 libgooroom_dockbarx_applet_la_CPPFLAGS = \
@@ -12,7 +12,7 @@ libgooroom_dockbarx_applet_la_CPPFLAGS = \
 	-DGOOROOM_UPDATE_LAUNCHERS_HELPER=\"$(dockbarx_plugdir)/gooroom-update-launchers-helper\"
 
 libgooroom_dockbarx_applet_la_CFLAGS = \
-	$(GNOME_APPLETS_CFLAGS) \
+	$(LIBGNOMEPANEL_CFLAGS) \
 	$(GLIB_CFLAGS) \
 	$(GTK_CFLAGS) \
 	$(JSON_C_CFLAGS) \
@@ -22,14 +22,15 @@ libgooroom_dockbarx_applet_la_SOURCES = \
 	panel-glib.h \
 	panel-glib.c \
 	dockbarx-applet.c \
-	dockbarx-applet.h
+	dockbarx-applet.h \
+	dockbarx-module.c
 
 libgooroom_dockbarx_applet_la_LDFLAGS = \
 	-avoid-version \
 	$(AM_LDFLAGS)
 
 libgooroom_dockbarx_applet_la_LIBADD = \
-	$(GNOME_APPLETS_LIBS) \
+	$(LIBGNOMEPANEL_LIBS) \
 	$(GLIB_LIBS) \
 	$(GTK_LIBS) \
 	$(JSON_C_LIBS)

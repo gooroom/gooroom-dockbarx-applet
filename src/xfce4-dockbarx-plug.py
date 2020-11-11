@@ -1,8 +1,7 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 #
 #   xfce4-dockbarx-plug
 #
-#   
 #   Copyright 2008-2013
 #      Aleksey Shaferov, Matias Sars, and Trent McPheron
 #
@@ -37,7 +36,6 @@ import cairo
 
 from optparse import OptionParser
 
-
 GSETTINGS_CLIENT = Gio.Settings.new("org.dockbarx")
 GSETTINGS_DT_IFACE_CLIENT = Gio.Settings.new("org.gnome.desktop.interface")
 #BACKGROUND_PATH = "/usr/share/backgrounds/gooroom/panel-bg.png"
@@ -51,14 +49,14 @@ class DockBarXFCEPlug(Gtk.Plug):
     def __init__ (self):
         import dockbarx.dockbar as db
 
-        parser = OptionParser()
+        parser = OptionParser(usage="", add_help_option=False)
         parser.add_option("-s", "--socket", default = 0, help = "Socket ID")
         (options, args) = parser.parse_args()
 
         # Sanity checks.
         if options.socket == 0:
             sys.exit("This program needs to be run by the XFCE DBX plugin.")
-        
+
         Gtk.Plug.__init__(self)
         self.construct(int(options.socket))
         self.connect("destroy", self.destroy)
@@ -101,7 +99,7 @@ class DockBarXFCEPlug(Gtk.Plug):
         max_size = GSETTINGS_CLIENT.get_int("max-size")
         if max_size < 1: max_size = 32767
         return max_size
-    
+
     def readd_container (self, container):
         self.align.add(container)
         self.dockbar.set_max_size(self.get_size())

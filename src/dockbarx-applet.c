@@ -32,7 +32,7 @@
 #include <gio/gdesktopappinfo.h>
 
 #include <json-c/json.h>
-#include <panel-applet.h>
+#include <libgnome-panel/gp-applet.h>
 
 #include "panel-glib.h"
 #include "dockbarx-applet.h"
@@ -53,7 +53,7 @@ struct _DockbarxAppletPrivate
 	GDBusConnection *connection;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE (DockbarxApplet, dockbarx_applet, PANEL_TYPE_APPLET)
+G_DEFINE_TYPE_WITH_PRIVATE (DockbarxApplet, dockbarx_applet, GP_TYPE_APPLET)
 
 
 static void handle_method_call (GDBusConnection *conn,
@@ -164,7 +164,7 @@ start_dockbarx (DockbarxApplet *applet)
 
 	socket_id = gtk_socket_get_id (GTK_SOCKET (priv->socket));
 
-	cmd = g_strdup_printf ("/usr/bin/env python2 %s -s %lu", DOCKBARX_PLUG, socket_id);
+	cmd = g_strdup_printf ("/usr/bin/env python3 %s -s %lu", DOCKBARX_PLUG, socket_id);
 
 	envp = g_get_environ ();
 	g_shell_parse_argv (cmd, NULL, &argv, NULL);
@@ -292,7 +292,7 @@ set_max_size_cb (gpointer data)
 	DockbarxApplet *applet = DOCKBARX_APPLET (data);
 	DockbarxAppletPrivate *priv = applet->priv;
 
-	orientation = panel_applet_get_gtk_orientation (PANEL_APPLET (applet));
+	orientation = gp_applet_get_orientation (GP_APPLET (applet));
 	gtk_widget_get_allocation (GTK_WIDGET (applet), &alloc);
 
 	size = (orientation == GTK_ORIENTATION_HORIZONTAL) ? alloc.width : alloc.height;
@@ -306,7 +306,7 @@ static void
 dockbarx_applet_size_allocate (GtkWidget     *widget,
                                GtkAllocation *allocation)
 {
-	PanelApplet *panel_applet = PANEL_APPLET (widget);
+	GpApplet *gp_applet = GP_APPLET (widget);
 
 	GTK_WIDGET_CLASS (dockbarx_applet_parent_class)->size_allocate (widget, allocation);
 
@@ -314,9 +314,9 @@ dockbarx_applet_size_allocate (GtkWidget     *widget,
 	size_hints[0] = 32767;
 	size_hints[1] = 0;
 
-	panel_applet_set_size_hints (panel_applet, size_hints, 2, 0);
+	gp_applet_set_size_hints (gp_applet, size_hints, 2, 0);
 
-	g_timeout_add (100, (GSourceFunc)set_max_size_cb, panel_applet);
+	g_timeout_add (100, (GSourceFunc)set_max_size_cb, gp_applet);
 }
 
 static void
@@ -357,6 +357,26 @@ dockbarx_applet_finalize (GObject *object)
 		G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize (object);
 }
 
+static gboolean
+dockbarx_applet_fill (DockbarxApplet *applet)
+{
+	GTask *task;
+
+	task = g_task_new (NULL, NULL, init_thread_done_cb, applet);
+	g_task_run_in_thread (task, start_init_thread);
+	g_object_unref (task);
+
+	return TRUE;
+}
+
+static void
+dockbarx_applet_constructed (GObject *object)
+{
+	DockbarxApplet *applet = DOCKBARX_APPLET (object);
+
+	dockbarx_applet_fill (DOCKBARX_APPLET (applet));
+}
+
 static void
 dockbarx_applet_init (DockbarxApplet *applet)
 {
@@ -367,9 +387,9 @@ dockbarx_applet_init (DockbarxApplet *applet)
 
 	priv = applet->priv = dockbarx_applet_get_instance_private (applet);
 
-	panel_applet_set_flags (PANEL_APPLET (applet),
-                            PANEL_APPLET_EXPAND_MAJOR |
-                            PANEL_APPLET_EXPAND_MINOR);
+	gp_applet_set_flags (GP_APPLET (applet),
+                         GP_APPLET_FLAGS_EXPAND_MAJOR |
+                         GP_APPLET_FLAGS_EXPAND_MINOR);
 
 	schema = g_settings_schema_source_lookup (g_settings_schema_source_get_default (),
                                               "org.dockbarx", TRUE);
@@ -401,35 +421,6 @@ dockbarx_applet_class_init (DockbarxAppletClass *class)
 	widget_class = GTK_WIDGET_CLASS (class);
 
 	object_class->finalize = dockbarx_applet_finalize;
+	object_class->constructed = dockbarx_applet_constructed;
 	widget_class->size_allocate = dockbarx_applet_size_allocate;
 }
-
-static gboolean
-dockbarx_applet_fill (DockbarxApplet *applet)
-{
-	GTask *task;
-
-	task = g_task_new (NULL, NULL, init_thread_done_cb, applet);
-	g_task_run_in_thread (task, start_init_thread);
-	g_object_unref (task);
-
-	return TRUE;
-}
-
-static gboolean
-dockbarx_applet_factory (PanelApplet *applet,
-                         const gchar *iid,
-                         gpointer     data)
-{
-	gboolean retval = FALSE;
-
-	if (!g_strcmp0 (iid, "DockbarxApplet"))
-		retval = dockbarx_applet_fill (DOCKBARX_APPLET (applet));
-
-	return retval;
-}
-
-PANEL_APPLET_IN_PROCESS_FACTORY ("DockbarxAppletFactory",
-                   DOCKBARX_TYPE_APPLET,
-                   (PanelAppletFactoryCallback)dockbarx_applet_factory,
-                   NULL)

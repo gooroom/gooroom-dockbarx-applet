@@ -21,7 +21,7 @@
 
 G_BEGIN_DECLS
 
-#include <panel-applet.h>
+#include <libgnome-panel/gp-applet.h>
 
 #define DOCKBARX_TYPE_APPLET           (dockbarx_applet_get_type ())
 #define DOCKBARX_APPLET(obj)           (G_TYPE_CHECK_INSTANCE_CAST ((obj), DOCKBARX_TYPE_APPLET, DockbarxApplet))
@@ -35,12 +35,12 @@ typedef struct _DockbarxAppletClass   DockbarxAppletClass;
 typedef struct _DockbarxAppletPrivate DockbarxAppletPrivate;
 
 struct _DockbarxApplet {
-	PanelApplet            parent;
+	GpApplet 	           parent;
 	DockbarxAppletPrivate *priv;
 };
 
 struct _DockbarxAppletClass {
-	PanelAppletClass parent_class;
+	GpAppletClass parent_class;
 };
 
 GType dockbarx_applet_get_type (void);
