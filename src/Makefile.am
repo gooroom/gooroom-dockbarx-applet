@@ -23,7 +23,7 @@ libgooroom_dockbarx_applet_la_SOURCES = \
 	panel-glib.c \
 	dockbarx-applet.c \
 	dockbarx-applet.h \
-	dockbarx-module.c
+	dockbarx-applet-module.c
 
 libgooroom_dockbarx_applet_la_LDFLAGS = \
 	-avoid-version \

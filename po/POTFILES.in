@@ -1,3 +1,2 @@
 src/dockbarx-applet.c
-src/dockbarx-module.c
-[type: gettext/ini]data/kr.gooroom.DockbarxApplet.panel-applet.in.in
+src/dockbarx-applet-module.c

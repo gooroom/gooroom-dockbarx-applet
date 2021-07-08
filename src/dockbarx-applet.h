@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2019 Gooroom <gooroom@gooroom.kr>
+ * Copyright (C) 2018-2021 Gooroom <gooroom@gooroom.kr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -16,35 +16,35 @@
  *
  */
 
-#ifndef __DOCKBARX_APPLET_H__
-#define __DOCKBARX_APPLET_H__
+#ifndef __GOOROOM_DOCKBARX_APPLET_H__
+#define __GOOROOM_DOCKBARX_APPLET_H__
 
 G_BEGIN_DECLS
 
 #include <libgnome-panel/gp-applet.h>
 
-#define DOCKBARX_TYPE_APPLET           (dockbarx_applet_get_type ())
-#define DOCKBARX_APPLET(obj)           (G_TYPE_CHECK_INSTANCE_CAST ((obj), DOCKBARX_TYPE_APPLET, DockbarxApplet))
-#define DOCKBARX_APPLET_CLASS(obj)     (G_TYPE_CHECK_CLASS_CAST    ((obj), DOCKBARX_TYPE_APPLET, DockbarxAppletClass))
-#define DOCKBARX_IS_APPLET(obj)        (G_TYPE_CHECK_INSTANCE_TYPE ((obj), DOCKBARX_TYPE_APPLET))
-#define DOCKBARX_IS_APPLET_CLASS(obj)  (G_TYPE_CHECK_CLASS_TYPE    ((obj), DOCKBARX_TYPE_APPLET))
-#define DOCKBARX_APPLET_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS  ((obj), DOCKBARX_TYPE_APPLET, DockbarxAppletClass))
+#define GOOROOM_TYPE_DOCKBARX_APPLET           (gooroom_dockbarx_applet_get_type ())
+#define GOOROOM_DOCKBARX_APPLET(obj)           (G_TYPE_CHECK_INSTANCE_CAST ((obj), GOOROOM_TYPE_DOCKBARX_APPLET, GooroomDockbarxApplet))
+#define GOOROOM_DOCKBARX_APPLET_CLASS(obj)     (G_TYPE_CHECK_CLASS_CAST    ((obj), GOOROOM_TYPE_DOCKBARX_APPLET, GooroomDockbarxAppletClass))
+#define GOOROOM_IS_DOCKBARX_APPLET(obj)        (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GOOROOM_TYPE_DOCKBARX_APPLET))
+#define GOOROOM_IS_DOCKBARX_APPLET_CLASS(obj)  (G_TYPE_CHECK_CLASS_TYPE    ((obj), GOOROOM_TYPE_DOCKBARX_APPLET))
+#define GOOROOM_DOCKBARX_APPLET_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS  ((obj), GOOROOM_TYPE_DOCKBARX_APPLET, GooroomDockbarxAppletClass))
 
-typedef struct _DockbarxApplet        DockbarxApplet;
-typedef struct _DockbarxAppletClass   DockbarxAppletClass;
-typedef struct _DockbarxAppletPrivate DockbarxAppletPrivate;
+typedef struct _GooroomDockbarxApplet        GooroomDockbarxApplet;
+typedef struct _GooroomDockbarxAppletClass   GooroomDockbarxAppletClass;
+typedef struct _GooroomDockbarxAppletPrivate GooroomDockbarxAppletPrivate;
 
-struct _DockbarxApplet {
+struct _GooroomDockbarxApplet {
 	GpApplet 	           parent;
-	DockbarxAppletPrivate *priv;
+	GooroomDockbarxAppletPrivate *priv;
 };
 
-struct _DockbarxAppletClass {
+struct _GooroomDockbarxAppletClass {
 	GpAppletClass parent_class;
 };
 
-GType dockbarx_applet_get_type (void);
+GType gooroom_dockbarx_applet_get_type (void);
 
 G_END_DECLS
 
-#endif /* __DOCKBARX_APPLET_H__*/
+#endif /* __GOOROOM_DOCKBARX_APPLET_H__*/

@@ -2,7 +2,7 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Source: https://github.com/gooroom/gooroom-dockbarx-applet/
 
 Files: *
-Copyright: 2018-2019 Gooroom <gooroom@gooroom.kr>
+Copyright: 2018-2021 Gooroom <gooroom@gooroom.kr>
 License: GPL-2+
 
 Files: src/panel-glib.*

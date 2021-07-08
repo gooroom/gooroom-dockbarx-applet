@@ -115,7 +115,7 @@ class DockBarXFCEPlug(Gtk.Plug):
         ctx.rectangle(rect.x, rect.y,
                       rect.width, rect.height)
         ctx.clip()
-        ctx.set_source_rgba(0.0,0.0,0.0,0.8)
+        ctx.set_source_rgba(0.0,0.0,0.0,0.7)
         ctx.paint()
         if self.get_child():
             self.propagate_draw(self.get_child(), event)

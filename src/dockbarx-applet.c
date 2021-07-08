@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2019 Gooroom <gooroom@gooroom.kr>
+ * Copyright (C) 2018-2021 Gooroom <gooroom@gooroom.kr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -17,7 +17,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include <pwd.h>
@@ -40,7 +40,7 @@
 #define GRM_USER	".grm-user"
 
 
-struct _DockbarxAppletPrivate
+struct _GooroomDockbarxAppletPrivate
 {
 	GtkWidget *socket;
 
@@ -53,7 +53,7 @@ struct _DockbarxAppletPrivate
 	GDBusConnection *connection;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE (DockbarxApplet, dockbarx_applet, GP_TYPE_APPLET)
+G_DEFINE_TYPE_WITH_PRIVATE (GooroomDockbarxApplet, gooroom_dockbarx_applet, GP_TYPE_APPLET)
 
 
 static void handle_method_call (GDBusConnection *conn,
@@ -82,22 +82,22 @@ static const GDBusInterfaceVTable interface_vtable = {
 };
 
 static void
-on_dockbarx_applet_name_lost (GDBusConnection *connection,
-                              const gchar     *name,
-                              gpointer        *data)
+on_gooroom_dockbarx_applet_name_lost (GDBusConnection *connection,
+                                      const gchar     *name,
+                                      gpointer        *data)
 {
 }
 
 
 static void
-on_dockbarx_applet_bus_acquired (GDBusConnection *connection,
-                                 const gchar     *name,
-                                 gpointer        *data)
+on_gooroom_dockbarx_applet_bus_acquired (GDBusConnection *connection,
+                                         const gchar     *name,
+                                         gpointer        *data)
 {
 	GDBusNodeInfo *introspection_data;
 
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	priv->connection = connection;
 
@@ -113,27 +113,27 @@ on_dockbarx_applet_bus_acquired (GDBusConnection *connection,
 }
 
 static void
-dockbarx_applet_dbus_init (DockbarxApplet *applet)
+gooroom_dockbarx_applet_dbus_init (GooroomDockbarxApplet *applet)
 {
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	if (priv->owner_id == 0) {
 		priv->owner_id = g_bus_own_name (G_BUS_TYPE_SESSION,
                                          "kr.gooroom.dockbarx.applet",
                                          G_BUS_NAME_OWNER_FLAGS_NONE,
-                                         (GBusAcquiredCallback) on_dockbarx_applet_bus_acquired,
+                                         (GBusAcquiredCallback) on_gooroom_dockbarx_applet_bus_acquired,
                                          NULL,
-                                         (GBusNameLostCallback) on_dockbarx_applet_name_lost,
+                                         (GBusNameLostCallback) on_gooroom_dockbarx_applet_name_lost,
                                          applet, NULL);
 	}
 }
 
 static gboolean
-dockbarx_applet_dbus_init_idle (gpointer data)
+gooroom_dockbarx_applet_dbus_init_idle (gpointer data)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
 
-	dockbarx_applet_dbus_init (applet);
+	gooroom_dockbarx_applet_dbus_init (applet);
 
 	return FALSE;
 }
@@ -145,13 +145,13 @@ start_dockbarx_done_cb (GPid pid, gint status, gpointer data)
 }
 
 static gboolean
-start_dockbarx (DockbarxApplet *applet)
+start_dockbarx (GooroomDockbarxApplet *applet)
 {
 	GPid pid;
 	gchar *cmd = NULL;
 	gchar **argv = NULL, **envp = NULL;
 	gulong socket_id = 0;
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	if (priv->socket) {
 		gtk_widget_destroy (priv->socket);
@@ -173,7 +173,7 @@ start_dockbarx (DockbarxApplet *applet)
 		g_child_watch_add (pid, (GChildWatchFunc) start_dockbarx_done_cb, applet);
 	}
 
-	g_timeout_add (500, (GSourceFunc)dockbarx_applet_dbus_init_idle, applet);
+	g_timeout_add (500, (GSourceFunc)gooroom_dockbarx_applet_dbus_init_idle, applet);
 
 	g_free (cmd);
 	g_strfreev (argv);
@@ -184,8 +184,8 @@ start_dockbarx (DockbarxApplet *applet)
 static void
 kill_dockbarx_done_cb (GPid pid, gint status, gpointer data)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	g_spawn_close_pid (pid);
 
@@ -193,11 +193,11 @@ kill_dockbarx_done_cb (GPid pid, gint status, gpointer data)
 }
 
 static void
-kill_dockbarx (DockbarxApplet *applet)
+kill_dockbarx (GooroomDockbarxApplet *applet)
 {
 	GPid pid;
 	gchar **argv = NULL, **envp = NULL;
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	envp = g_get_environ ();
 	g_shell_parse_argv ("/usr/bin/pkill -f 'python.*xfce4-dockbarx-plug'", NULL, &argv, NULL);
@@ -214,8 +214,8 @@ kill_dockbarx (DockbarxApplet *applet)
 static gboolean
 restart_dockbarx_idle (gpointer data)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	kill_dockbarx (applet);
 
@@ -238,8 +238,8 @@ init_thread_done_cb (GObject      *source_object,
                      GAsyncResult *result,
                      gpointer      user_data)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (user_data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (user_data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	g_idle_add ((GSourceFunc)start_dockbarx, applet);
 }
@@ -267,8 +267,8 @@ handle_method_call (GDBusConnection *conn,
                     GDBusMethodInvocation *invocation,
                     gpointer data)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	if (!g_strcmp0 (method_name, "Restart")) {
 		if (priv->timeout_id == 0)
@@ -289,8 +289,8 @@ set_max_size_cb (gpointer data)
 	GtkAllocation alloc;
 	GtkOrientation orientation;
 
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	orientation = gp_applet_get_orientation (GP_APPLET (applet));
 	gtk_widget_get_allocation (GTK_WIDGET (applet), &alloc);
@@ -303,12 +303,12 @@ set_max_size_cb (gpointer data)
 }
 
 static void
-dockbarx_applet_size_allocate (GtkWidget     *widget,
-                               GtkAllocation *allocation)
+gooroom_dockbarx_applet_size_allocate (GtkWidget     *widget,
+                                       GtkAllocation *allocation)
 {
 	GpApplet *gp_applet = GP_APPLET (widget);
 
-	GTK_WIDGET_CLASS (dockbarx_applet_parent_class)->size_allocate (widget, allocation);
+	GTK_WIDGET_CLASS (gooroom_dockbarx_applet_parent_class)->size_allocate (widget, allocation);
 
 	gint size_hints[2];
 	size_hints[0] = 32767;
@@ -322,18 +322,18 @@ dockbarx_applet_size_allocate (GtkWidget     *widget,
 static void
 monitors_changed_cb (GdkScreen *screen, gpointer data)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (data);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	if (priv->timeout_id == 0)
 		priv->timeout_id = g_idle_add ((GSourceFunc)restart_dockbarx_idle, applet);
 }
 
 static void
-dockbarx_applet_finalize (GObject *object)
+gooroom_dockbarx_applet_finalize (GObject *object)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (object);
-	DockbarxAppletPrivate *priv = applet->priv;
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (object);
+	GooroomDockbarxAppletPrivate *priv = applet->priv;
 
 	if (priv->timeout_id > 0) {
 		g_source_remove (priv->timeout_id);
@@ -353,12 +353,12 @@ dockbarx_applet_finalize (GObject *object)
 	if (priv->dockbarx_settings)
 		g_object_unref (priv->dockbarx_settings);
 
-	if (G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize)
-		G_OBJECT_CLASS (dockbarx_applet_parent_class)->finalize (object);
+	if (G_OBJECT_CLASS (gooroom_dockbarx_applet_parent_class)->finalize)
+		G_OBJECT_CLASS (gooroom_dockbarx_applet_parent_class)->finalize (object);
 }
 
 static gboolean
-dockbarx_applet_fill (DockbarxApplet *applet)
+gooroom_dockbarx_applet_fill (GooroomDockbarxApplet *applet)
 {
 	GTask *task;
 
@@ -370,22 +370,22 @@ dockbarx_applet_fill (DockbarxApplet *applet)
 }
 
 static void
-dockbarx_applet_constructed (GObject *object)
+gooroom_dockbarx_applet_constructed (GObject *object)
 {
-	DockbarxApplet *applet = DOCKBARX_APPLET (object);
+	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (object);
 
-	dockbarx_applet_fill (DOCKBARX_APPLET (applet));
+	gooroom_dockbarx_applet_fill (GOOROOM_DOCKBARX_APPLET (applet));
 }
 
 static void
-dockbarx_applet_init (DockbarxApplet *applet)
+gooroom_dockbarx_applet_init (GooroomDockbarxApplet *applet)
 {
 	GdkScreen *screen;
 	GSettingsSchema *schema = NULL;
 
-	DockbarxAppletPrivate *priv;
+	GooroomDockbarxAppletPrivate *priv;
 
-	priv = applet->priv = dockbarx_applet_get_instance_private (applet);
+	priv = applet->priv = gooroom_dockbarx_applet_get_instance_private (applet);
 
 	gp_applet_set_flags (GP_APPLET (applet),
                          GP_APPLET_FLAGS_EXPAND_MAJOR |
@@ -412,7 +412,7 @@ dockbarx_applet_init (DockbarxApplet *applet)
 }
 
 static void
-dockbarx_applet_class_init (DockbarxAppletClass *class)
+gooroom_dockbarx_applet_class_init (GooroomDockbarxAppletClass *class)
 {
 	GObjectClass *object_class;
 	GtkWidgetClass *widget_class;
@@ -420,7 +420,7 @@ dockbarx_applet_class_init (DockbarxAppletClass *class)
 	object_class = G_OBJECT_CLASS (class);
 	widget_class = GTK_WIDGET_CLASS (class);
 
-	object_class->finalize = dockbarx_applet_finalize;
-	object_class->constructed = dockbarx_applet_constructed;
-	widget_class->size_allocate = dockbarx_applet_size_allocate;
+	object_class->finalize = gooroom_dockbarx_applet_finalize;
+	object_class->constructed = gooroom_dockbarx_applet_constructed;
+	widget_class->size_allocate = gooroom_dockbarx_applet_size_allocate;
 }

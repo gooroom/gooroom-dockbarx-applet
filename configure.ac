@@ -69,7 +69,6 @@ AC_SUBST([GNOME_PANEL_MODULES_DIR], [$GNOME_PANEL_MODULES_DIR])
 
 AC_OUTPUT([
   Makefile
-  data/Makefile
   src/Makefile
   po/Makefile.in
 ])

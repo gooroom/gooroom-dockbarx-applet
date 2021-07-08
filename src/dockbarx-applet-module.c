@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2018 Alberts Muktupāvels
+ * Copyright (C) 2021 Gooroom <gooroom@gooroom.kr>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include <glib/gi18n-lib.h>
 #include <libgnome-panel/gp-module.h>
@@ -34,36 +36,21 @@ dockbarx_get_applet_info (const gchar *id)
   description = _("Dockbarx applet for GNOME panel");
   icon = "dockbarx";
 
-  info = gp_applet_info_new (dockbarx_applet_get_type, name, description, icon);
+  info = gp_applet_info_new (gooroom_dockbarx_applet_get_type, name, description, icon);
 
   return info;
-}
-
-static const gchar *
-dockbarx_get_applet_id_from_iid (const gchar *iid)
-{
-  if (g_strcmp0 (iid, "PanelInternalFactory::DockbarxApplet") == 0 ||
-      g_strcmp0 (iid, "dockbarx::dockbarx") == 0)
-    return "dockbarx-applet";
-
-  return NULL;
 }
 
 void
 gp_module_load (GpModule *module)
 {
-  bindtextdomain (GETTEXT_PACKAGE, GNOMELOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+	bindtextdomain (GETTEXT_PACKAGE, GNOMELOCALEDIR);
+	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+	gp_module_set_gettext_domain (module, GETTEXT_PACKAGE);
 
-  gp_module_set_gettext_domain (module, GETTEXT_PACKAGE);
-
-  gp_module_set_abi_version (module, GP_MODULE_ABI_VERSION);
-
-  gp_module_set_id (module, "kr.gooroom.dockbarx.applet");
-  gp_module_set_version (module, PACKAGE_VERSION);
-
-  gp_module_set_applet_ids (module, "dockbarx-applet", NULL);
-
-  gp_module_set_get_applet_info (module, dockbarx_get_applet_info);
-  gp_module_set_compatibility (module, dockbarx_get_applet_id_from_iid);
+	gp_module_set_abi_version (module, GP_MODULE_ABI_VERSION);
+	gp_module_set_id (module, "kr.gooroom.dockbarx.applet");
+	gp_module_set_version (module, PACKAGE_VERSION);
+	gp_module_set_applet_ids (module, "gooroom-dockbarx-applet", NULL);
+	gp_module_set_get_applet_info (module, dockbarx_get_applet_info);
 }
