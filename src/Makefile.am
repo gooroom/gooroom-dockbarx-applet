@@ -35,7 +35,8 @@ libgooroom_dockbarx_applet_la_LIBADD = \
 	$(GTK_LIBS) \
 	$(JSON_C_LIBS)
 
-pkglibexec_PROGRAMS = \
+gooroomupdatedir = $(GNOME_PANEL_MODULES_DIR)
+gooroomupdate_PROGRAMS = \
     gooroom-update-launchers-helper
 
 gooroom_update_launchers_helper_SOURCES = \
