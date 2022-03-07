@@ -1,3 +1,13 @@
+gooroom-dockbarx-applet (0.3.0+grm3u1) unstable; urgency=medium
+
+  [cjheo]
+  * [75c8f68c] Rebase for Gooroom-3.0
+    
+  [subin.kim] 
+  * [5bc08610] porting to gooroom-3.0
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Mon, 07 Mar 2022 17:00:49 +0900
+
 gooroom-dockbarx-applet (0.2.3+grm2u1) unstable; urgency=medium
 
   [ cjheo ]
