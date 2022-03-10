@@ -206,56 +206,70 @@ cleanup_desktop_files (void)
 static gboolean
 create_desktop_file (json_object *obj, const gchar *dt_file_name, gint num)
 {
-	g_return_val_if_fail ((obj != NULL) || (dt_file_name != NULL), FALSE);
+    g_return_val_if_fail ((obj != NULL) || (dt_file_name != NULL), FALSE);
 
-	gboolean ret = FALSE;
-	GKeyFile *keyfile = NULL;
+    gboolean ret = FALSE;
+    GKeyFile *keyfile = NULL;
 
-	keyfile = g_key_file_new ();
+    keyfile = g_key_file_new ();
 
-	json_object_object_foreach (obj, key, val) {
-		const gchar *value = json_object_get_string (val);
-		gchar *d_key = g_ascii_strdown (key, -1);
+    json_object_object_foreach (obj, key, val) {
+        const gchar *value = json_object_get_string (val);
+        gchar *d_key = g_ascii_strdown (key, -1);
 
-		if (d_key && g_strcmp0 (d_key, "icon") == 0) {
-			if (g_str_has_prefix (value, "http://") || g_str_has_prefix (value, "https://")) {
-				gchar *icon_file = download_favicon (value, num);
-				g_key_file_set_string (keyfile, "Desktop Entry", "Icon", icon_file);
-				g_free (icon_file);
-			} else {
-				g_key_file_set_string (keyfile, "Desktop Entry", "Icon", value);
-			}
-		} else {
-			gchar *new_key = NULL;
+        if (d_key && g_strcmp0 (d_key, "exec") == 0) {
+            if (g_strstr_len (value, -1, ",,,")) {
+                gint i = 0;
+                gchar **s_exec = g_strsplit (value, ",,,", -1);
 
-			if (g_strcmp0 (d_key, "name") == 0) {
-				new_key = g_strdup ("Name");
-			} else if (g_strcmp0 (d_key, "comment") == 0) {
-				new_key = g_strdup ("Comment");
-			} else if (g_strcmp0 (d_key, "exec") == 0) {
-				new_key = g_strdup ("Exec");
-			}
+                for (i = 0; s_exec[i] != NULL; i++) {
+                    if (g_find_program_in_path (s_exec[i])) {
+                        value = g_strdup (s_exec[i]);
+                    }
+                }
+                g_strfreev (s_exec);
+            }
+        }
 
-			if (new_key) {
-				g_key_file_set_string (keyfile, "Desktop Entry", new_key, value);
-				g_free (new_key);
-			}
-		}
+        if (d_key && g_strcmp0 (d_key, "icon") == 0) {
+            if (g_str_has_prefix (value, "http://") || g_str_has_prefix (value, "https://")) {
+                gchar *icon_file = download_favicon (value, num);
+                g_key_file_set_string (keyfile, "Desktop Entry", "Icon", icon_file);
+                g_free (icon_file);
+            } else {
+                g_key_file_set_string (keyfile, "Desktop Entry", "Icon", value);
+            }
+        } else {
+            gchar *new_key = NULL;
 
-		g_free (d_key);
-	}
+            if (g_strcmp0 (d_key, "name") == 0) {
+                new_key = g_strdup ("Name");
+            } else if (g_strcmp0 (d_key, "comment") == 0) {
+                new_key = g_strdup ("Comment");
+            } else if (g_strcmp0 (d_key, "exec") == 0) {
+                new_key = g_strdup ("Exec");
+            }
 
-	g_key_file_set_string (keyfile, "Desktop Entry", "Type", "Application");
-	g_key_file_set_string (keyfile, "Desktop Entry", "Terminal", "false");
-	g_key_file_set_string (keyfile, "Desktop Entry", "StartupNotify", "true");
-	/* we don't want to show in application launcher */
-	g_key_file_set_string (keyfile, "Desktop Entry", "NoDisplay", "true");
+            if (new_key) {
+                g_key_file_set_string (keyfile, "Desktop Entry", new_key, value);
+                g_free (new_key);
+            }
+        }
 
-	ret = g_key_file_save_to_file (keyfile, dt_file_name, NULL);
+        g_free (d_key);
+    }
 
-	g_key_file_free (keyfile);
+    g_key_file_set_string (keyfile, "Desktop Entry", "Type", "Application");
+    g_key_file_set_string (keyfile, "Desktop Entry", "Terminal", "false");
+    g_key_file_set_string (keyfile, "Desktop Entry", "StartupNotify", "true");
+    /* we don't want to show in application launcher */
+    g_key_file_set_string (keyfile, "Desktop Entry", "NoDisplay", "true");
 
-	return ret;
+    ret = g_key_file_save_to_file (keyfile, dt_file_name, NULL);
+
+    g_key_file_free (keyfile);
+
+    return ret;
 }
 
 static void
