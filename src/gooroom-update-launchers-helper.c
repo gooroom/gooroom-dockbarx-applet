@@ -225,6 +225,7 @@ create_desktop_file (json_object *obj, const gchar *dt_file_name, gint num)
                 for (i = 0; s_exec[i] != NULL; i++) {
                     if (g_find_program_in_path (s_exec[i])) {
                         value = g_strdup (s_exec[i]);
+                        break;
                     }
                 }
                 g_strfreev (s_exec);
@@ -406,24 +407,26 @@ get_launchers_from_online (json_object *root_obj)
 
 	apps_obj = JSON_OBJECT_GET (root_obj, "apps");
 	if (apps_obj) {
-		gint i = 0, len = 0;;
+		gint i = 0, len = 0;
 		len = json_object_array_length (apps_obj);
 		for (i = 0; i < len; i++) {
 			json_object *app_obj = json_object_array_get_idx (apps_obj, i);
 
 			if (app_obj) {
-				json_object *dt_obj = NULL, *pos_obj = NULL;
+				json_object *dt_obj = NULL, *pos_obj = NULL, *ord_obj = NULL;
 				dt_obj = JSON_OBJECT_GET (app_obj, "desktop");
 				pos_obj = JSON_OBJECT_GET (app_obj, "position");
+				ord_obj = JSON_OBJECT_GET (app_obj, "order");
 
 				if (dt_obj && pos_obj) {
 					gchar *dt_dir_name = get_desktop_directory (pos_obj);
 					if (dt_dir_name) {
-						gchar *dt_file_name = g_strdup_printf ("%s/shortcut-%.02d.desktop", dt_dir_name, i);
+						gint order = json_object_get_int(ord_obj);
+						gchar *dt_file_name = g_strdup_printf ("%s/shortcut-%.02d.desktop", dt_dir_name, order-1);
 
-						if (create_desktop_file (dt_obj, dt_file_name, i)) {
-							gchar *launcher = g_strdup_printf ("shortcut-%.02d;%s", i, dt_file_name);
-							launchers = g_slist_append (launchers, launcher);
+						if (create_desktop_file (dt_obj, dt_file_name, order-1)) {
+							gchar *launcher = g_strdup_printf ("shortcut-%.02d;%s", order-1, dt_file_name);
+							launchers = g_slist_insert (launchers, launcher, order-1);
 						} else {
 							g_error ("Could not create desktop file : %s", dt_file_name);
 						}
