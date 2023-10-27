@@ -282,42 +282,42 @@ handle_method_call (GDBusConnection *conn,
 	}
 }
 
-static gboolean
-set_max_size_cb (gpointer data)
-{
-	gint size;
-	GtkAllocation alloc;
-	GtkOrientation orientation;
+//static gboolean
+//set_max_size_cb (gpointer data)
+//{
+//	gint size;
+//	GtkAllocation alloc;
+//	GtkOrientation orientation;
+//
+//	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
+//	GooroomDockbarxAppletPrivate *priv = applet->priv;
+//
+//	orientation = gp_applet_get_orientation (GP_APPLET (applet));
+//	gtk_widget_get_allocation (GTK_WIDGET (applet), &alloc);
+//
+//	size = (orientation == GTK_ORIENTATION_HORIZONTAL) ? alloc.width : alloc.height;
+//
+//	g_settings_set_int (priv->dockbarx_settings, "max-size", size);
+//
+//	return FALSE;
+//}
 
-	GooroomDockbarxApplet *applet = GOOROOM_DOCKBARX_APPLET (data);
-	GooroomDockbarxAppletPrivate *priv = applet->priv;
-
-	orientation = gp_applet_get_orientation (GP_APPLET (applet));
-	gtk_widget_get_allocation (GTK_WIDGET (applet), &alloc);
-
-	size = (orientation == GTK_ORIENTATION_HORIZONTAL) ? alloc.width : alloc.height;
-
-	g_settings_set_int (priv->dockbarx_settings, "max-size", size);
-
-	return FALSE;
-}
-
-static void
-gooroom_dockbarx_applet_size_allocate (GtkWidget     *widget,
-                                       GtkAllocation *allocation)
-{
-	GpApplet *gp_applet = GP_APPLET (widget);
-
-	GTK_WIDGET_CLASS (gooroom_dockbarx_applet_parent_class)->size_allocate (widget, allocation);
-
-	gint size_hints[2];
-	size_hints[0] = 32767;
-	size_hints[1] = 0;
-
-	gp_applet_set_size_hints (gp_applet, size_hints, 2, 0);
-
-	g_timeout_add (100, (GSourceFunc)set_max_size_cb, gp_applet);
-}
+//static void
+//gooroom_dockbarx_applet_size_allocate (GtkWidget     *widget,
+//                                       GtkAllocation *allocation)
+//{
+//	GpApplet *gp_applet = GP_APPLET (widget);
+//
+//	GTK_WIDGET_CLASS (gooroom_dockbarx_applet_parent_class)->size_allocate (widget, allocation);
+//
+//	gint size_hints[2];
+//	size_hints[0] = 32767;
+//	size_hints[1] = 0;
+//
+//	gp_applet_set_size_hints (gp_applet, size_hints, 2, 0);
+//
+//	g_timeout_add (100, (GSourceFunc)set_max_size_cb, gp_applet);
+//}
 
 static void
 monitors_changed_cb (GdkScreen *screen, gpointer data)
@@ -395,6 +395,7 @@ gooroom_dockbarx_applet_init (GooroomDockbarxApplet *applet)
                                               "org.dockbarx", TRUE);
 	if (schema) {
 		priv->dockbarx_settings = g_settings_new_full (schema, NULL, NULL);
+		g_settings_set_int (priv->dockbarx_settings, "max-size", 32767);
 		g_settings_schema_unref (schema);
 	}
 
@@ -422,5 +423,5 @@ gooroom_dockbarx_applet_class_init (GooroomDockbarxAppletClass *class)
 
 	object_class->finalize = gooroom_dockbarx_applet_finalize;
 	object_class->constructed = gooroom_dockbarx_applet_constructed;
-	widget_class->size_allocate = gooroom_dockbarx_applet_size_allocate;
+//	widget_class->size_allocate = gooroom_dockbarx_applet_size_allocate;
 }
