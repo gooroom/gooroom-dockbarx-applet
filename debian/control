@@ -14,7 +14,7 @@ Build-Depends: automake (>= 1.13),
                gir1.2-gtk-3.0,
                libjson-c-dev,
                python3-gi-cairo
-Standards-Version: 4.1.1
+Standards-Version: 4.6.2
 
 Package: gooroom-dockbarx-applet
 Architecture: any
