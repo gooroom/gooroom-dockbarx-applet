@@ -1,0 +1,4 @@
+gooroom-dockbarx-applet source: no-nmu-in-changelog
+gooroom-dockbarx-applet source: source-nmu-has-incorrect-version-number
+gooroom-dockbarx-applet source: latest-debian-changelog-entry-without-new-date
+gooroom-dockbarx-applet source: unknown-field Original-Maintainer
